@@ -1,16 +1,22 @@
-resource "oci_core_instance" "instancia01" {
+resource "oci_core_instance" "web" {
   availability_domain = local.ad
   compartment_id      = var.compartment_id
-  display_name        = "instancia-publica"
+  display_name        = "web"
   shape               = var.instance_shape
 
+  shape_config {
+    memory_in_gbs = var.memory_in_gbs_per_node
+    ocpus         = var.ocpus_per_node
+  }
+
   source_details {
-    source_id   = var.instance_image_id[var.region]
+    source_id   = data.oci_core_images._.images[0].id
     source_type = "image"
   }
 
   create_vnic_details {
     subnet_id = oci_core_subnet.public_sn.id
+    nsg_ids = [oci_core_network_security_group.sg_web.id]
   }
 
   metadata = {
@@ -22,18 +28,33 @@ resource "oci_core_instance" "instancia01" {
   }
 }
 
-resource "oci_core_subnet" "private" {
+resource "oci_core_instance" "mariadb" {
   availability_domain = local.ad
-  cidr_block          = local.private_subnet_prefix
-  display_name        = "instancia-privada"
   compartment_id      = var.compartment_id
-  vcn_id              = oci_core_vcn.this.id
-  route_table_id      = oci_core_route_table.private.id
+  display_name        = "mariadb"
+  shape               = var.instance_shape
 
-  security_list_ids = [
-    oci_core_security_list.private.id,
-  ]
+  shape_config {
+    memory_in_gbs = var.memory_in_gbs_per_node
+    ocpus         = var.ocpus_per_node
+  }
 
-  dns_label                  = "private"
-  prohibit_public_ip_on_vnic = true
+  source_details {
+    source_id   = data.oci_core_images._.images[0].id
+    source_type = "image"
+  }
+
+  create_vnic_details {
+    subnet_id        = oci_core_subnet.private_sn.id
+    nsg_ids = [oci_core_network_security_group.sg_mysql.id]
+    assign_public_ip = false
+  }
+
+  metadata = {
+    ssh_authorized_keys = var.ssh_public_key
+  }
+
+  timeouts {
+    create = "10m"
+  }
 }

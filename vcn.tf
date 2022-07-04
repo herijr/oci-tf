@@ -1,26 +1,14 @@
 resource "oci_core_vcn" "this" {
   cidr_block     = var.vcn_cidr
-  dns_label      = "pp"
+  dns_label      = "minhavcn"
   compartment_id = var.compartment_id
   display_name   = "minha-vcn"
 }
 
-resource "oci_core_nat_gateway" "nat_gateway" {
-  compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.this.id
-  display_name   = "nat_gateway"
-}
-
-resource "oci_core_internet_gateway" "ig" {
-  compartment_id = var.compartment_id
-  display_name   = "meu-igw"
-  vcn_id         = oci_core_vcn.this.id
-}
-
 resource "oci_core_subnet" "public_sn" {
   availability_domain = local.ad
-  cidr_block          = local.public_subnet_prefix
-  display_name        = "subnet publica"
+  cidr_block          = "10.0.11.0/24"
+  display_name        = "publicsubnet"
   compartment_id      = var.compartment_id
   vcn_id              = oci_core_vcn.this.id
   route_table_id      = oci_core_route_table.public_rt.id
@@ -29,8 +17,38 @@ resource "oci_core_subnet" "public_sn" {
     oci_core_security_list.public_sl.id
   ]
 
-  dns_label                  = "subnetpublica"
+  dns_label                  = "publicsubnet"
   prohibit_public_ip_on_vnic = false
+}
+
+resource "oci_core_subnet" "private_sn" {
+  availability_domain = local.ad
+  cidr_block          = "10.0.1.0/24"
+  display_name        = "privatesubnet"
+  compartment_id      = var.compartment_id
+  vcn_id              = oci_core_vcn.this.id
+  route_table_id      = oci_core_route_table.private_rt.id
+
+  security_list_ids = [
+    oci_core_security_list.private_sl.id,
+  ]
+
+  dns_label                  = "privatesubnet"
+  prohibit_public_ip_on_vnic = true
+}
+
+resource "oci_core_nat_gateway" "nat_gateway" {
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.this.id
+  display_name   = "nat_gateway"
+}
+
+
+
+resource "oci_core_internet_gateway" "ig" {
+  compartment_id = var.compartment_id
+  display_name   = "meu-igw"
+  vcn_id         = oci_core_vcn.this.id
 }
 
 resource "oci_core_route_table" "public_rt" {
@@ -44,37 +62,10 @@ resource "oci_core_route_table" "public_rt" {
   }
 }
 
-resource "oci_core_security_list" "public_sl" {
-  compartment_id = var.compartment_id
-  display_name   = "security list publica"
-  vcn_id         = oci_core_vcn.this.id
-
-  ingress_security_rules {
-    source   = local.anywhere
-    protocol = local.tcp_protocol
-
-    tcp_options {
-      min = 22
-      max = 22
-    }
-  }
-
-  egress_security_rules {
-    destination = var.vcn_cidr
-    protocol    = local.tcp_protocol
-
-    tcp_options {
-      min = 22
-      max = 22
-    }
-  }
-}
-
-
-resource "oci_core_route_table" "private" {
+resource "oci_core_route_table" "private_rt" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.this.id
-  display_name   = "private"
+  display_name   = "private-rt"
 
   route_rules {
     destination       = local.anywhere
@@ -83,48 +74,43 @@ resource "oci_core_route_table" "private" {
   }
 }
 
-resource "oci_core_security_list" "private" {
+resource "oci_core_security_list" "public_sl" {
   compartment_id = var.compartment_id
-  display_name   = "private"
+  display_name   = "public security list"
+  vcn_id         = oci_core_vcn.this.id
+  
+  ingress_security_rules {
+    protocol    = "all"
+    source      = "0.0.0.0/0"
+    source_type = "CIDR_BLOCK"
+    stateless   = false
+  }
+ 
+  egress_security_rules {
+    destination      = "0.0.0.0/0"
+    destination_type = "CIDR_BLOCK"
+    protocol         = "all"
+    stateless        = false
+  }
+
+}
+
+resource "oci_core_security_list" "private_sl" {
+  compartment_id = var.compartment_id
+  display_name   = "private security list"
   vcn_id         = oci_core_vcn.this.id
 
   ingress_security_rules {
-    source   = local.public_subnet_prefix
-    protocol = local.tcp_protocol
-
-    tcp_options {
-      min = 22
-      max = 22
-    }
+    protocol    = "all"
+    source      = "0.0.0.0/0"
+    source_type = "CIDR_BLOCK"
+    stateless   = false
   }
-
+ 
   egress_security_rules {
-    destination = local.anywhere
-    protocol    = local.all_protocols
-  }
-}
-
-resource "oci_core_instance" "private" {
-  availability_domain = local.ad
-  compartment_id      = var.compartment_id
-  display_name        = "private_test_instance"
-  shape               = var.instance_shape
-
-  source_details {
-    source_id   = var.instance_image_id[var.region]
-    source_type = "image"
-  }
-
-  create_vnic_details {
-    subnet_id        = oci_core_subnet.private.id
-    assign_public_ip = false
-  }
-
-  metadata = {
-    ssh_authorized_keys = var.ssh_public_key
-  }
-
-  timeouts {
-    create = "10m"
+    destination      = "0.0.0.0/0"
+    destination_type = "CIDR_BLOCK"
+    protocol         = "all"
+    stateless        = false
   }
 }

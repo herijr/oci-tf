@@ -35,15 +35,16 @@ variable "subnet_cidr_offset" {
   default = 5
 }
 
-variable "instance_image_id" {
-  type = map(string)
-
-  default = {
-    # See https://docs.us-phoenix-1.oraclecloud.com/images/
-    us-ashburn-1   = "ocid1.image.oc1.iad.aaaaaaaawyrwqisciarak2rkykdwbv5u6xsj5bv3nc6nsahk3etad3znz6ea"
-  }
+variable "instance_shape" {
+  default = "VM.Standard.A1.Flex"
 }
 
-variable "instance_shape" {
-  default = "VM.Standard.E2.1.Micro"
+variable "ocpus_per_node" {
+  type    = number
+  default = 1
+}
+
+variable "memory_in_gbs_per_node" {
+  type    = number
+  default = 6
 }
